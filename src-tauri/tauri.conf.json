@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "my-chess-app",
-        "width": 1040,
-        "height": 820
+        "width": 1200,
+        "height": 860
       }
     ],
     "security": {

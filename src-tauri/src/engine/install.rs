@@ -1,5 +1,5 @@
-use std::fs::File;
-use std::io::BufReader;
+use std::fs::{self, File};
+use std::io::{copy, BufReader};
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -189,8 +189,38 @@ fn extract_archive(archive_path: &Path, dest: &Path) -> Result<(), String> {
         archive
             .unpack(dest)
             .map_err(|e| format!("unpack_tar: {e}"))?;
+    } else if name.ends_with(".zip") {
+        extract_zip(archive_path, dest)?;
     } else {
         return Err(format!("unsupported_archive:{name}"));
+    }
+    Ok(())
+}
+
+fn extract_zip(archive_path: &Path, dest: &Path) -> Result<(), String> {
+    ensure_dir(dest)?;
+    let file = File::open(archive_path).map_err(|e| format!("open_zip: {e}"))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| format!("read_zip: {e}"))?;
+
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| format!("zip_entry: {e}"))?;
+        let Some(relative) = entry.enclosed_name() else {
+            continue;
+        };
+        let out_path = dest.join(relative);
+        if entry.is_dir() {
+            fs::create_dir_all(&out_path).map_err(|e| format!("zip_mkdir: {e}"))?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                fs::create_dir_all(parent).map_err(|e| format!("zip_parent: {e}"))?;
+            }
+            let mut out_file =
+                File::create(&out_path).map_err(|e| format!("zip_create: {e}"))?;
+            copy(&mut entry, &mut out_file).map_err(|e| format!("zip_extract: {e}"))?;
+        }
     }
     Ok(())
 }

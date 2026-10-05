@@ -17,6 +17,7 @@ export type DatabaseInfo = {
   gameCount: number;
   storageSize: number;
   installed: boolean;
+  indexed: boolean;
 };
 
 export type GameRow = {
@@ -47,6 +48,13 @@ export function listInstalledDatabases(): Promise<DatabaseInfo[]> {
 
 export function installDatabase(catalogId: string): Promise<DatabaseInfo> {
   return invoke("install_database", { catalogId });
+}
+
+export function downloadUserDatabase(
+  site: "lichess" | "chesscom",
+  username: string,
+): Promise<DatabaseInfo> {
+  return invoke("download_user_database", { site, username });
 }
 
 export function removeDatabase(dbId: string): Promise<void> {

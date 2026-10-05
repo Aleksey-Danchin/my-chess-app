@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   cancelDownload,
+  downloadUserDatabase,
   installDatabase,
   listDatabaseCatalog,
   listDatabaseGames,
@@ -12,41 +13,70 @@ import {
   type GameRow,
 } from "../lib/databases";
 import { isDownloadCancelled } from "../lib/download";
+import {
+  buildDatabaseIndex,
+  onDbIndexProgress,
+} from "../lib/dbSearch";
 import { formatBytes, formatProgress } from "../lib/format";
 
 const PAGE_SIZE = 50;
 
 type ProgressMap = Record<string, { downloaded: number; total: number | null }>;
+type UserSite = "lichess" | "chesscom";
 
 export function DatabasesPage() {
   const [catalog, setCatalog] = useState<CatalogDatabase[]>([]);
   const [installed, setInstalled] = useState<DatabaseInfo[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [progress, setProgress] = useState<ProgressMap>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [indexingId, setIndexingId] = useState<string | null>(null);
+  const [indexProgress, setIndexProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [loadingGames, setLoadingGames] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userSite, setUserSite] = useState<UserSite>("lichess");
+  const [userNick, setUserNick] = useState("");
+  const [userBusyId, setUserBusyId] = useState<string | null>(null);
 
   const installedIds = useMemo(
     () => new Set(installed.map((d) => d.id)),
     [installed],
   );
 
-  const refresh = async () => {
-    const [cat, inst] = await Promise.all([
-      listDatabaseCatalog(),
-      listInstalledDatabases(),
-    ]);
-    setCatalog(cat);
+  const loadCatalog = async () => {
+    setLoadingCatalog(true);
+    setCatalogError(null);
+    try {
+      const cat = await listDatabaseCatalog();
+      setCatalog(cat);
+    } catch (e) {
+      setCatalog([]);
+      setCatalogError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingCatalog(false);
+    }
+  };
+
+  const refreshInstalled = async () => {
+    const inst = await listInstalledDatabases();
     setInstalled(inst);
     if (selectedId && !inst.some((d) => d.id === selectedId)) {
       setSelectedId(null);
       setGames([]);
       setTotal(0);
     }
+  };
+
+  const refresh = async () => {
+    await Promise.all([loadCatalog(), refreshInstalled()]);
   };
 
   useEffect(() => {
@@ -77,6 +107,20 @@ export function DatabasesPage() {
       return next;
     });
   };
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void onDbIndexProgress((p) => {
+      if (p.dbId === indexingId) {
+        setIndexProgress({ done: p.done, total: p.total });
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [indexingId]);
 
   const loadGames = async (dbId: string, nextOffset: number) => {
     setLoadingGames(true);
@@ -111,11 +155,55 @@ export function DatabasesPage() {
     }
   };
 
+  const userDownloadId = (site: UserSite, nick: string) =>
+    `${site}-${nick.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+
+  const handleUserDownload = async () => {
+    const nick = userNick.trim();
+    if (!nick) {
+      setError("Укажите ник пользователя");
+      return;
+    }
+    const id = userDownloadId(userSite, nick);
+    setUserBusyId(id);
+    setBusyId(id);
+    setError(null);
+    try {
+      await downloadUserDatabase(userSite, nick);
+      await refreshInstalled();
+      clearProgress(id);
+      setUserNick("");
+    } catch (e) {
+      clearProgress(id);
+      if (!isDownloadCancelled(e)) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    } finally {
+      setUserBusyId(null);
+      setBusyId(null);
+    }
+  };
+
   const handleCancel = async (id: string) => {
     try {
       await cancelDownload(id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleIndex = async (id: string) => {
+    setIndexingId(id);
+    setIndexProgress(null);
+    setError(null);
+    try {
+      await buildDatabaseIndex(id);
+      await refreshInstalled();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIndexingId(null);
+      setIndexProgress(null);
     }
   };
 
@@ -143,10 +231,100 @@ export function DatabasesPage() {
       ) : null}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Каталог</h2>
+        <h2 className="text-lg font-semibold">Пользователь</h2>
+        <p className="text-sm opacity-70">
+          Скачать партии по нику с Lichess или Chess.com в локальную базу.
+        </p>
+        <div className="flex flex-wrap items-end gap-3 rounded-box bg-base-100 p-4 shadow-sm">
+          <label className="form-control w-40">
+            <span className="label-text text-xs opacity-70">Сайт</span>
+            <select
+              className="select select-bordered select-sm"
+              value={userSite}
+              disabled={userBusyId != null}
+              onChange={(e) => setUserSite(e.target.value as UserSite)}
+            >
+              <option value="lichess">Lichess</option>
+              <option value="chesscom">Chess.com</option>
+            </select>
+          </label>
+          <label className="form-control min-w-[12rem] flex-1">
+            <span className="label-text text-xs opacity-70">Ник</span>
+            <input
+              type="text"
+              className="input input-bordered input-sm"
+              placeholder="username"
+              value={userNick}
+              disabled={userBusyId != null}
+              onChange={(e) => setUserNick(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && userBusyId == null) {
+                  void handleUserDownload();
+                }
+              }}
+            />
+          </label>
+          {userBusyId ? (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => void handleCancel(userBusyId)}
+            >
+              Отменить
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={!userNick.trim()}
+              onClick={() => void handleUserDownload()}
+            >
+              Скачать
+            </button>
+          )}
+        </div>
+        {userBusyId && progress[userBusyId] ? (
+          <p className="text-sm">
+            {progress[userBusyId].total != null
+              ? userSite === "chesscom"
+                ? `Архивы: ${progress[userBusyId].downloaded} / ${progress[userBusyId].total}`
+                : formatProgress(
+                    progress[userBusyId].downloaded,
+                    progress[userBusyId].total,
+                  )
+              : `Импорт партий: ${progress[userBusyId].downloaded.toLocaleString("ru-RU")}`}
+          </p>
+        ) : null}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Каталог</h2>
+          {loadingCatalog ? (
+            <span className="loading loading-spinner loading-sm" />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => void loadCatalog()}
+            >
+              Обновить
+            </button>
+          )}
+        </div>
         <p className="text-sm opacity-70">
           Готовые базы с encroissant.org. Файлы могут быть большими (1+ GB).
         </p>
+
+        {catalogError ? (
+          <div role="alert" className="alert alert-error text-sm">
+            <span>Не удалось загрузить каталог: {catalogError}</span>
+          </div>
+        ) : null}
+
+        {loadingCatalog ? (
+          <p className="text-sm opacity-70">Загрузка каталога…</p>
+        ) : catalogError ? null : (
         <div className="space-y-3">
           {catalog.map((db) => {
             const isInstalled = installedIds.has(db.id);
@@ -199,6 +377,7 @@ export function DatabasesPage() {
             );
           })}
         </div>
+        )}
       </section>
 
       <section className="space-y-3">
@@ -217,9 +396,27 @@ export function DatabasesPage() {
                     <p className="font-semibold">{db.title}</p>
                     <p className="text-sm opacity-70">
                       {db.gameCount.toLocaleString("ru-RU")} партий
+                      {db.indexed ? " · индекс готов" : " · нужен индекс (v2)"}
                     </p>
+                    {indexingId === db.id && indexProgress ? (
+                      <p className="mt-1 text-sm">
+                        Индекс: {indexProgress.done.toLocaleString("ru-RU")} /{" "}
+                        {indexProgress.total.toLocaleString("ru-RU")}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      disabled={indexingId === db.id}
+                      onClick={() => void handleIndex(db.id)}
+                    >
+                      {indexingId === db.id ? (
+                        <span className="loading loading-spinner loading-xs" />
+                      ) : null}
+                      {db.indexed ? "Перестроить индекс" : "Построить индекс"}
+                    </button>
                     <button
                       type="button"
                       className="btn btn-outline btn-sm"

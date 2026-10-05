@@ -13,11 +13,14 @@ body {
 
 /* Chessground needs an explicit box; keep utilities off cg-* internals. */
 .board-host {
-  width: min(72vmin, 100%);
-  aspect-ratio: 1;
+  width: min(72vmin, 32rem);
+  max-width: 100%;
+  min-width: 16rem;
+  aspect-ratio: 1 / 1;
+  display: block;
 }
 
 .board-host .cg-wrap {
-  width: 100%;
-  height: 100%;
+  width: 100% !important;
+  height: 100% !important;
 }

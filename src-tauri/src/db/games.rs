@@ -2,6 +2,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 
 use super::install::find_installed;
+use super::result_col::{result_code, result_display};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,12 +64,12 @@ pub fn list_games(
 
     let rows = stmt
         .query_map(rusqlite::params![limit as i64, offset as i64], |row| {
-            let result_code: Option<i64> = row.get(3)?;
+            let code = result_code(row.get_ref(3)?);
             Ok(GameRow {
                 id: row.get(0)?,
                 white: row.get(1)?,
                 black: row.get(2)?,
-                result: map_result(result_code),
+                result: result_display(code),
                 date: row.get(4)?,
                 event: row.get(5)?,
                 white_elo: row.get(6)?,
@@ -88,13 +89,4 @@ pub fn list_games(
         limit,
         games,
     })
-}
-
-fn map_result(code: Option<i64>) -> String {
-    match code {
-        Some(1) => "1-0".into(),
-        Some(2) => "0-1".into(),
-        Some(3) => "1/2-1/2".into(),
-        _ => "*".into(),
-    }
 }

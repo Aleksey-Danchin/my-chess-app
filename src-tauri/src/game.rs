@@ -46,6 +46,27 @@ impl Game {
         self.snapshot_with_promotion(false)
     }
 
+    pub fn from_fen(fen: &str) -> Result<Self, String> {
+        use shakmaty::{fen::Fen, CastlingMode, FromSetup, PositionError};
+        let parsed: Fen = fen.parse().map_err(|e| format!("invalid_fen: {e}"))?;
+        let setup = parsed.into_setup();
+        let mode = CastlingMode::detect(&setup);
+        let position = Chess::from_setup(setup, mode)
+            .or_else(PositionError::ignore_too_much_material)
+            .map_err(|e| format!("fen_setup: {e}"))?;
+        Ok(Self {
+            position,
+            last_move: None,
+        })
+    }
+
+    pub fn play_uci(&mut self, uci: &str) -> Result<PositionSnapshot, String> {
+        let from = &uci.get(0..2).ok_or_else(|| "bad_uci".to_string())?;
+        let to = &uci.get(2..4).ok_or_else(|| "bad_uci".to_string())?;
+        let promo = uci.chars().nth(4).map(|c| c.to_string());
+        self.make_move(from, to, promo.as_deref())
+    }
+
     fn snapshot_with_promotion(&self, needs_promotion: bool) -> PositionSnapshot {
         let fen = Fen::from_position(&self.position, EnPassantMode::Legal).to_string();
         let turn = match self.position.turn() {

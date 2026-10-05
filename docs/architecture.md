@@ -8,72 +8,39 @@ React (Chessground + daisyUI tabs)
         ▼
 Tauri commands (thin API)
     │
-    ├── game.rs        Shakmaty position / legal moves
-    ├── engine/        catalog + download/install/remove (no UCI yet)
-    ├── db/            catalog + download .db3 + browse games
-    └── fs/            AppData paths + HTTP download helper
+    ├── game.rs              Shakmaty position / legal moves
+    ├── engine/              install, profiles, UCI analysis + bestmove
+    ├── db/                  download, Games browse, .mcidx search
+    ├── repertoire/          DAG store + auto builder
+    └── fs/                  AppData paths + HTTP download
 ```
 
-- **Frontend** renders the board and chrome. It does not decide whether a move is legal.
-- **`game`** owns the in-memory position, legal move map (`dests`), and game status.
-- **`engine`** manages UCI binaries on disk (catalog → AppData). Analysis/UCI spawn is later.
-- **`db`** downloads ready game databases (`.db3`) and lists game metadata (no move replay yet).
-
-## AppData layout (Linux)
+## AppData (Linux)
 
 `~/.local/share/com.mychessapp.app/`
 
 ```text
-engines/
-  engines.json
-  stockfish-linux-x86-64/   # extracted binary
-databases/
-  databases.json
-  caissabase-2024.db3
+engines/engines.json, profiles.json, …
+databases/*.db3, *.mcidx
+repertoires/repertoires.json, {id}.json
 ```
 
-## Position contract
+## Position search
 
-Commands return a snapshot roughly like:
+en-croissant-compatible Moves BLOB (`db/encoding.rs`). Sibling index `.mcidx` v2 beside `.db3`
+(`build_database_index`): move blobs plus end-of-game material / pawn-home for reachability pruning.
+`search_position` scans the index in parallel (with prune + mid-replay early exit), caches results
+in memory by `(db, fen_key)`, and returns move stats (uci/san, W/D/L, percent). Rebuild the index
+after upgrading from v1.
 
-```ts
-{
-  fen: string;
-  turn: "white" | "black";
-  dests: Record<string, string[]>; // e.g. { e2: ["e3","e4"] }
-  lastMove: [string, string] | null;
-  check: boolean;
-  status: "playing" | "checkmate" | "stalemate";
-  needsPromotion: boolean; // true if from→to requires Q/R/B/N choice
-}
-```
+## Repertoire DAG
 
-Flow:
+Nodes keyed by FEN without clocks. Edges: `manual` | `db` | `engine`. Opponent moves from DB filters; our replies = one engine bestmove. Transpositions share nodes. Builder: Stop / Continue / Rebuild.
 
-1. UI loads snapshot via `get_position`.
-2. Chessground gets `movable.dests` from that snapshot.
-3. On move, UI calls `make_move(from, to, promotion?)`.
-4. Backend validates with Shakmaty and returns a new snapshot (or an error).
+## Analysis profiles
 
-## Engines
+Named settings cloned onto the board session; Save / Save as.
 
-- Built-in catalog (Linux Stockfish from GitHub releases).
-- `install_engine` downloads archive, unpacks under `engines/{id}/`, `chmod +x`, updates `engines.json`.
-- Progress via event `engine-download-progress`.
-- No UCI process management in this phase.
+## Styling
 
-## Databases
-
-- Remote catalog: `https://www.encroissant.org/databases` (ready `.db3` files).
-- `install_database` streams file into `databases/`, updates `databases.json`.
-- Progress via event `db-download-progress`.
-- `list_database_games` reads en-croissant SQLite schema (metadata only; moves BLOB not decoded).
-
-## Why rules in Rust
-
-Engine analysis, multi-engine UCI, and future features need a single authoritative position on the backend. Shakmaty matches the en-croissant-style split and avoids drifting from a JS rules engine.
-
-## Styling zones
-
-- **Tailwind / daisyUI:** layout, tabs, status panel, buttons, promotion dialog, tables.
-- **Chessground CSS:** squares, pieces, coordinates, animations inside the board container only.
+Tailwind/daisyUI for chrome; Chessground CSS only inside the board host.

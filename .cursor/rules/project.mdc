@@ -1,5 +1,5 @@
 ---
-description: Core project goals, stack, MVP boundaries, and tooling discipline
+description: Core project goals, stack, boundaries, and tooling discipline
 alwaysApply: true
 ---
 
@@ -14,24 +14,27 @@ Desktop chess GUI. Inspiration: en-croissant architecture, not a fork.
 - UI chrome: Tailwind CSS 4 + daisyUI 5
 - Board: `@lichess-org/chessground`
 - Rules of chess: Shakmaty in Rust (source of truth)
-- Engines: only via Rust `engine` module (download/install now; UCI later)
-- Game databases: via Rust `db` module (download ready `.db3` + browse metadata)
+- Engines: Rust `engine` module (install + named analysis profiles + UCI)
+- Game databases: Rust `db` module (download ready `.db3` + browse metadata + `.mcidx` search)
+- Repertoires: Rust `repertoire` module (DAG + auto builder)
 
 Do not introduce Electron, chess.js as rules authority, or ad-hoc engine spawning from the frontend.
 
-## Current boundaries (phase 1a)
+## Current boundaries (phase 1c)
 
-In scope: board + legal moves; engine install/remove; download ready DBs and list games.
+In scope: board + legal moves; engine install; analysis profiles; evaluate current position via UCI; download ready DBs and list games; position search index; repertoire auto-builder.
 
-Out of scope for now: UCI analysis, PGN import, position search / opening explorer, routers, Mantine/Jotai.
+Out of scope for now: PGN import, play vs engine, practice trainer, routers, Mantine/Jotai.
+
+## Analysis UX
+
+Selecting a profile **clones** settings into the board session. Board edits stay local until «Сохранить в профиль» or «Сохранить в новый профиль».
 
 ## Tooling (mandatory)
 
 Use mainstream CLIs — do not hand-author manifests from scratch when a generator/CLI exists.
 
 - Scaffold: `npm create tauri-app@latest`
-- JS deps: `npm install` / `npm uninstall` (never hand-edit `package.json` dependencies)
+- JS deps: `npm install` / `npm uninstall`
 - Rust deps: `cargo add` / `cargo remove` from `src-tauri`
 - Dev: `npm run tauri dev`
-
-Editing app source and making small post-scaffold config tweaks is fine. Replacing the official Vite/Tauri scaffold with a handmade one is not.

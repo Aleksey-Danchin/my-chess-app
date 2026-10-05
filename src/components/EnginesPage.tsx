@@ -11,12 +11,15 @@ import {
   type EngineInfo,
 } from "../lib/engines";
 import { formatBytes, formatProgress } from "../lib/format";
+import { ProfilesSection } from "./ProfilesSection";
 
 type ProgressMap = Record<string, { downloaded: number; total: number | null }>;
 
 export function EnginesPage() {
   const [catalog, setCatalog] = useState<CatalogEngine[]>([]);
   const [installed, setInstalled] = useState<EngineInfo[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressMap>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,13 +29,27 @@ export function EnginesPage() {
     [installed],
   );
 
-  const refresh = async () => {
-    const [cat, inst] = await Promise.all([
-      listEngineCatalog(),
-      listInstalledEngines(),
-    ]);
-    setCatalog(cat);
+  const loadCatalog = async () => {
+    setLoadingCatalog(true);
+    setCatalogError(null);
+    try {
+      const cat = await listEngineCatalog();
+      setCatalog(cat);
+    } catch (e) {
+      setCatalog([]);
+      setCatalogError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingCatalog(false);
+    }
+  };
+
+  const refreshInstalled = async () => {
+    const inst = await listInstalledEngines();
     setInstalled(inst);
+  };
+
+  const refresh = async () => {
+    await Promise.all([loadCatalog(), refreshInstalled()]);
   };
 
   useEffect(() => {
@@ -111,8 +128,30 @@ export function EnginesPage() {
       ) : null}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Каталог</h2>
-        {catalog.length === 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Каталог</h2>
+          {loadingCatalog ? (
+            <span className="loading loading-spinner loading-sm" />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => void loadCatalog()}
+            >
+              Обновить
+            </button>
+          )}
+        </div>
+
+        {catalogError ? (
+          <div role="alert" className="alert alert-error text-sm">
+            <span>Не удалось загрузить каталог: {catalogError}</span>
+          </div>
+        ) : null}
+
+        {loadingCatalog ? (
+          <p className="text-sm opacity-70">Загрузка каталога…</p>
+        ) : catalogError ? null : catalog.length === 0 ? (
           <p className="text-sm opacity-70">
             Для этой платформы в каталоге пока нет движков.
           </p>
@@ -207,6 +246,8 @@ export function EnginesPage() {
           </div>
         )}
       </section>
+
+      <ProfilesSection />
     </div>
   );
 }

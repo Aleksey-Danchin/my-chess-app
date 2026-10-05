@@ -16,6 +16,10 @@ pub fn databases_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir(app)?.join("databases"))
 }
 
+pub fn repertoires_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_dir(app)?.join("repertoires"))
+}
+
 pub fn ensure_dir(path: &Path) -> Result<(), String> {
     std::fs::create_dir_all(path).map_err(|e| format!("create_dir {}: {e}", path.display()))
 }

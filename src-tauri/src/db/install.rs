@@ -11,7 +11,7 @@ use crate::fs::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct DatabaseRecord {
+pub struct DatabaseRecord {
     pub id: String,
     pub title: String,
     pub path: String,
@@ -45,13 +45,17 @@ pub fn list_installed(app: &AppHandle) -> Result<Vec<DatabaseInfo>, String> {
     let records = read_registry(&root)?;
     Ok(records
         .into_iter()
-        .map(|r| DatabaseInfo {
-            id: r.id,
-            title: r.title,
-            path: r.path,
-            game_count: r.game_count,
-            storage_size: r.storage_size,
-            installed: true,
+        .map(|r| {
+            let indexed = super::search_index::index_is_current(Path::new(&r.path));
+            DatabaseInfo {
+                id: r.id,
+                title: r.title,
+                path: r.path,
+                game_count: r.game_count,
+                storage_size: r.storage_size,
+                installed: true,
+                indexed,
+            }
         })
         .collect())
 }
@@ -132,7 +136,30 @@ pub async fn install_database(app: AppHandle, catalog_id: String) -> Result<Data
         game_count: record.game_count,
         storage_size: record.storage_size,
         installed: true,
+        indexed: false,
     })
+}
+
+/// Append an already-built database file to the local registry.
+pub fn register_record(app: &AppHandle, record: DatabaseRecord) -> Result<DatabaseInfo, String> {
+    let root = databases_dir(app)?;
+    ensure_dir(&root)?;
+    let mut records = read_registry(&root)?;
+    if records.iter().any(|r| r.id == record.id) {
+        return Err(format!("already_installed:{}", record.id));
+    }
+    let info = DatabaseInfo {
+        id: record.id.clone(),
+        title: record.title.clone(),
+        path: record.path.clone(),
+        game_count: record.game_count,
+        storage_size: record.storage_size,
+        installed: true,
+        indexed: super::search_index::index_is_current(Path::new(&record.path)),
+    };
+    records.push(record);
+    write_registry(&root, &records)?;
+    Ok(info)
 }
 
 pub fn remove_database(app: &AppHandle, db_id: String) -> Result<(), String> {
@@ -151,5 +178,10 @@ pub fn remove_database(app: &AppHandle, db_id: String) -> Result<(), String> {
     if path.exists() {
         std::fs::remove_file(&path).map_err(|e| format!("remove_db_file: {e}"))?;
     }
+    let index = super::search_index::index_path_for_db(&path);
+    if index.exists() {
+        let _ = std::fs::remove_file(&index);
+    }
+    super::search_index::clear_index_cache_for_db(&path);
     Ok(())
 }

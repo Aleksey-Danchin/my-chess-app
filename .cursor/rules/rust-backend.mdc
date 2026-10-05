@@ -1,5 +1,5 @@
 ---
-description: Rust/Tauri backend conventions for game, engines, and databases
+description: Rust/Tauri backend conventions for game, engines, databases, repertoires
 globs: src-tauri/**/*.rs
 alwaysApply: false
 ---
@@ -7,8 +7,8 @@ alwaysApply: false
 # Rust backend
 
 - Chess rules and legal moves: Shakmaty only.
-- Keep Tauri commands thin: parse input, call `game` / `engine` / `db`, return serializable DTOs.
-- Keep engine integration in `engine/` — isolated from UI and from `game` rules logic.
-- Keep databases in `db/`; shared HTTP/AppData helpers in `fs/`.
-- Phase 1a: download + registry for engines/DBs; no UCI process management; no PGN convert / position index.
-- Add crates with `cargo add` from `src-tauri`, not hand-edited `Cargo.toml` dependency lines when CLI works.
+- Keep Tauri commands thin: parse input, call `game` / `engine` / `db` / `repertoire`, return DTOs.
+- Engine install/profiles/UCI in `engine/`; databases + `.mcidx` in `db/`; repertoire DAG/builder in `repertoire/`.
+- One streaming analysis session (`AnalysisManager`); repertoire builder uses one-shot `get_best_move`.
+- Position key for repertoire nodes: FEN without halfmove/fullmove clocks.
+- Add crates with `cargo add` from `src-tauri` when CLI works.

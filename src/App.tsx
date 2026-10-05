@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { AnalysisPanel } from "./components/AnalysisPanel";
 import { ChessBoard } from "./components/ChessBoard";
 import { DatabasesPage } from "./components/DatabasesPage";
 import { EnginesPage } from "./components/EnginesPage";
 import { GameStatus } from "./components/GameStatus";
 import { PromotionDialog } from "./components/PromotionDialog";
+import { RepertoiresPage } from "./components/RepertoiresPage";
 import {
   getPosition,
   makeMove,
@@ -12,7 +14,7 @@ import {
   type PromotionPiece,
 } from "./lib/game";
 
-type Tab = "board" | "engines" | "databases";
+type Tab = "board" | "engines" | "databases" | "repertoires";
 
 type PendingPromotion = {
   from: string;
@@ -127,16 +129,24 @@ function BoardTab() {
         </div>
       ) : null}
 
-      <section className="flex flex-1 items-start justify-center">
-        {position ? (
-          <ChessBoard
-            position={position}
-            interactive={!busy && !pendingPromotion}
-            onUserMove={(from, to) => void handleUserMove(from, to)}
+      <section className="flex flex-1 flex-col items-stretch justify-start gap-6 lg:flex-row lg:items-start">
+        <div className="flex flex-1 justify-center">
+          {position ? (
+            <ChessBoard
+              position={position}
+              interactive={!busy && !pendingPromotion}
+              onUserMove={(from, to) => void handleUserMove(from, to)}
+            />
+          ) : (
+            <span className="loading loading-spinner loading-lg" />
+          )}
+        </div>
+        <div className="w-full lg:max-w-md">
+          <AnalysisPanel
+            fen={position?.fen ?? null}
+            turn={position?.turn ?? "white"}
           />
-        ) : (
-          <span className="loading loading-spinner loading-lg" />
-        )}
+        </div>
       </section>
 
       <PromotionDialog
@@ -154,15 +164,15 @@ function App() {
 
   return (
     <main className="min-h-full bg-base-200">
-      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-6 p-4 md:p-6">
+      <div className="mx-auto flex min-h-full max-w-6xl flex-col gap-6 p-4 md:p-6">
         <header className="space-y-3">
           <div className="space-y-1">
             <h1 className="text-2xl font-bold tracking-tight">my-chess-app</h1>
             <p className="text-sm opacity-70">
-              Доска, менеджер движков и базы партий
+              Доска, движки, базы и автосборщик репертуаров
             </p>
           </div>
-          <div role="tablist" className="tabs tabs-box w-fit">
+          <div role="tablist" className="tabs tabs-box w-fit flex-wrap">
             <button
               type="button"
               role="tab"
@@ -187,12 +197,21 @@ function App() {
             >
               Базы
             </button>
+            <button
+              type="button"
+              role="tab"
+              className={`tab ${tab === "repertoires" ? "tab-active" : ""}`}
+              onClick={() => setTab("repertoires")}
+            >
+              Репертуары
+            </button>
           </div>
         </header>
 
         {tab === "board" ? <BoardTab /> : null}
         {tab === "engines" ? <EnginesPage /> : null}
         {tab === "databases" ? <DatabasesPage /> : null}
+        {tab === "repertoires" ? <RepertoiresPage /> : null}
       </div>
     </main>
   );
