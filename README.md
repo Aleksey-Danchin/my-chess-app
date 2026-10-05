@@ -1,6 +1,6 @@
 # my-chess-app
 
-Desktop chess GUI (MVP): interactive board with legal moves. Built with Tauri 2, React, Chessground, and Shakmaty. Inspired by [en-croissant](https://github.com/franciscoBSalgueiro/en-croissant) architecture (not a fork).
+Desktop chess GUI: interactive board with legal moves, engine installer, and game-database browser. Built with Tauri 2, React, Chessground, and Shakmaty. Inspired by [en-croissant](https://github.com/franciscoBSalgueiro/en-croissant) architecture (not a fork).
 
 ## Stack
 
@@ -8,6 +8,7 @@ Desktop chess GUI (MVP): interactive board with legal moves. Built with Tauri 2,
 - **UI:** React + TypeScript + Vite + Tailwind CSS 4 + daisyUI 5
 - **Board:** `@lichess-org/chessground`
 - **Rules:** Shakmaty (Rust)
+- **Engines / DBs:** Rust modules under `src-tauri` (download into AppData)
 - **Package manager:** npm
 
 ## Prerequisites (Linux)

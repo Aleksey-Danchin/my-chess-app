@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChessBoard } from "./components/ChessBoard";
+import { DatabasesPage } from "./components/DatabasesPage";
+import { EnginesPage } from "./components/EnginesPage";
 import { GameStatus } from "./components/GameStatus";
 import { PromotionDialog } from "./components/PromotionDialog";
 import {
@@ -10,12 +12,14 @@ import {
   type PromotionPiece,
 } from "./lib/game";
 
+type Tab = "board" | "engines" | "databases";
+
 type PendingPromotion = {
   from: string;
   to: string;
 };
 
-function App() {
+function BoardTab() {
   const [position, setPosition] = useState<PositionSnapshot | null>(null);
   const [pendingPromotion, setPendingPromotion] =
     useState<PendingPromotion | null>(null);
@@ -39,8 +43,6 @@ function App() {
   const applySnapshot = (snap: PositionSnapshot) => {
     setPosition(snap);
     if (snap.needsPromotion) {
-      // Backend did not change the position; Chessground already moved the piece
-      // visually — next set() from this snapshot restores the legal board.
       return true;
     }
     setPendingPromotion(null);
@@ -110,41 +112,32 @@ function App() {
   };
 
   return (
-    <main className="min-h-full bg-base-200">
-      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-6 p-4 md:p-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">my-chess-app</h1>
-          <p className="text-sm opacity-70">
-            MVP: доска, легальные ходы, статус партии
-          </p>
-        </header>
+    <>
+      <section className="rounded-box bg-base-100 p-4 shadow-sm">
+        <GameStatus
+          position={position}
+          onNewGame={() => void handleNewGame()}
+          busy={busy}
+        />
+      </section>
 
-        <section className="rounded-box bg-base-100 p-4 shadow-sm">
-          <GameStatus
+      {error ? (
+        <div role="alert" className="alert alert-error text-sm">
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      <section className="flex flex-1 items-start justify-center">
+        {position ? (
+          <ChessBoard
             position={position}
-            onNewGame={() => void handleNewGame()}
-            busy={busy}
+            interactive={!busy && !pendingPromotion}
+            onUserMove={(from, to) => void handleUserMove(from, to)}
           />
-        </section>
-
-        {error ? (
-          <div role="alert" className="alert alert-error text-sm">
-            <span>{error}</span>
-          </div>
-        ) : null}
-
-        <section className="flex flex-1 items-start justify-center">
-          {position ? (
-            <ChessBoard
-              position={position}
-              interactive={!busy && !pendingPromotion}
-              onUserMove={(from, to) => void handleUserMove(from, to)}
-            />
-          ) : (
-            <span className="loading loading-spinner loading-lg" />
-          )}
-        </section>
-      </div>
+        ) : (
+          <span className="loading loading-spinner loading-lg" />
+        )}
+      </section>
 
       <PromotionDialog
         open={pendingPromotion !== null}
@@ -152,6 +145,55 @@ function App() {
         onChoose={(piece) => void handlePromotion(piece)}
         onCancel={() => void handleCancelPromotion()}
       />
+    </>
+  );
+}
+
+function App() {
+  const [tab, setTab] = useState<Tab>("board");
+
+  return (
+    <main className="min-h-full bg-base-200">
+      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-6 p-4 md:p-6">
+        <header className="space-y-3">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight">my-chess-app</h1>
+            <p className="text-sm opacity-70">
+              Доска, менеджер движков и базы партий
+            </p>
+          </div>
+          <div role="tablist" className="tabs tabs-box w-fit">
+            <button
+              type="button"
+              role="tab"
+              className={`tab ${tab === "board" ? "tab-active" : ""}`}
+              onClick={() => setTab("board")}
+            >
+              Доска
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={`tab ${tab === "engines" ? "tab-active" : ""}`}
+              onClick={() => setTab("engines")}
+            >
+              Движки
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={`tab ${tab === "databases" ? "tab-active" : ""}`}
+              onClick={() => setTab("databases")}
+            >
+              Базы
+            </button>
+          </div>
+        </header>
+
+        {tab === "board" ? <BoardTab /> : null}
+        {tab === "engines" ? <EnginesPage /> : null}
+        {tab === "databases" ? <DatabasesPage /> : null}
+      </div>
     </main>
   );
 }

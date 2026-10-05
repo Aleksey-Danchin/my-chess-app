@@ -14,15 +14,16 @@ Desktop chess GUI. Inspiration: en-croissant architecture, not a fork.
 - UI chrome: Tailwind CSS 4 + daisyUI 5
 - Board: `@lichess-org/chessground`
 - Rules of chess: Shakmaty in Rust (source of truth)
-- Engines: only via Rust `engine` module (stub in MVP)
+- Engines: only via Rust `engine` module (download/install now; UCI later)
+- Game databases: via Rust `db` module (download ready `.db3` + browse metadata)
 
 Do not introduce Electron, chess.js as rules authority, or ad-hoc engine spawning from the frontend.
 
-## MVP boundaries
+## Current boundaries (phase 1a)
 
-In scope: board, legal moves, status (check/mate/stalemate), new game, promotion UI.
+In scope: board + legal moves; engine install/remove; download ready DBs and list games.
 
-Out of scope for now: network, PGN/files, SQLite, real UCI, engine download/install, routers, Mantine/Jotai.
+Out of scope for now: UCI analysis, PGN import, position search / opening explorer, routers, Mantine/Jotai.
 
 ## Tooling (mandatory)
 
