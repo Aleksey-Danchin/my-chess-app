@@ -1,0 +1,36 @@
+---
+description: Core project goals, stack, MVP boundaries, and tooling discipline
+alwaysApply: true
+---
+
+# my-chess-app
+
+Desktop chess GUI. Inspiration: en-croissant architecture, not a fork.
+
+## Stack
+
+- Tauri 2 + React + TypeScript + Vite
+- Package manager: npm
+- UI chrome: Tailwind CSS 4 + daisyUI 5
+- Board: `@lichess-org/chessground`
+- Rules of chess: Shakmaty in Rust (source of truth)
+- Engines: only via Rust `engine` module (stub in MVP)
+
+Do not introduce Electron, chess.js as rules authority, or ad-hoc engine spawning from the frontend.
+
+## MVP boundaries
+
+In scope: board, legal moves, status (check/mate/stalemate), new game, promotion UI.
+
+Out of scope for now: network, PGN/files, SQLite, real UCI, engine download/install, routers, Mantine/Jotai.
+
+## Tooling (mandatory)
+
+Use mainstream CLIs — do not hand-author manifests from scratch when a generator/CLI exists.
+
+- Scaffold: `npm create tauri-app@latest`
+- JS deps: `npm install` / `npm uninstall` (never hand-edit `package.json` dependencies)
+- Rust deps: `cargo add` / `cargo remove` from `src-tauri`
+- Dev: `npm run tauri dev`
+
+Editing app source and making small post-scaffold config tweaks is fine. Replacing the official Vite/Tauri scaffold with a handmade one is not.

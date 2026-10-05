@@ -1,0 +1,159 @@
+import { useCallback, useEffect, useState } from "react";
+import { ChessBoard } from "./components/ChessBoard";
+import { GameStatus } from "./components/GameStatus";
+import { PromotionDialog } from "./components/PromotionDialog";
+import {
+  getPosition,
+  makeMove,
+  resetGame,
+  type PositionSnapshot,
+  type PromotionPiece,
+} from "./lib/game";
+
+type PendingPromotion = {
+  from: string;
+  to: string;
+};
+
+function App() {
+  const [position, setPosition] = useState<PositionSnapshot | null>(null);
+  const [pendingPromotion, setPendingPromotion] =
+    useState<PendingPromotion | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadPosition = useCallback(async () => {
+    try {
+      const snap = await getPosition();
+      setPosition(snap);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPosition();
+  }, [loadPosition]);
+
+  const applySnapshot = (snap: PositionSnapshot) => {
+    setPosition(snap);
+    if (snap.needsPromotion) {
+      // Backend did not change the position; Chessground already moved the piece
+      // visually — next set() from this snapshot restores the legal board.
+      return true;
+    }
+    setPendingPromotion(null);
+    return false;
+  };
+
+  const handleUserMove = async (from: string, to: string) => {
+    if (busy || pendingPromotion) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const snap = await makeMove(from, to);
+      const needsPromo = applySnapshot(snap);
+      if (needsPromo) {
+        setPendingPromotion({ from, to });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      await loadPosition();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handlePromotion = async (piece: PromotionPiece) => {
+    if (!pendingPromotion) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const snap = await makeMove(
+        pendingPromotion.from,
+        pendingPromotion.to,
+        piece,
+      );
+      applySnapshot(snap);
+      setPendingPromotion(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setPendingPromotion(null);
+      await loadPosition();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelPromotion = async () => {
+    setPendingPromotion(null);
+    await loadPosition();
+  };
+
+  const handleNewGame = async () => {
+    setBusy(true);
+    setError(null);
+    setPendingPromotion(null);
+    try {
+      const snap = await resetGame();
+      setPosition(snap);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <main className="min-h-full bg-base-200">
+      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-6 p-4 md:p-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight">my-chess-app</h1>
+          <p className="text-sm opacity-70">
+            MVP: доска, легальные ходы, статус партии
+          </p>
+        </header>
+
+        <section className="rounded-box bg-base-100 p-4 shadow-sm">
+          <GameStatus
+            position={position}
+            onNewGame={() => void handleNewGame()}
+            busy={busy}
+          />
+        </section>
+
+        {error ? (
+          <div role="alert" className="alert alert-error text-sm">
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <section className="flex flex-1 items-start justify-center">
+          {position ? (
+            <ChessBoard
+              position={position}
+              interactive={!busy && !pendingPromotion}
+              onUserMove={(from, to) => void handleUserMove(from, to)}
+            />
+          ) : (
+            <span className="loading loading-spinner loading-lg" />
+          )}
+        </section>
+      </div>
+
+      <PromotionDialog
+        open={pendingPromotion !== null}
+        turn={position?.turn ?? "white"}
+        onChoose={(piece) => void handlePromotion(piece)}
+        onCancel={() => void handleCancelPromotion()}
+      />
+    </main>
+  );
+}
+
+export default App;

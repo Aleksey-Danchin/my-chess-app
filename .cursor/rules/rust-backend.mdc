@@ -1,0 +1,13 @@
+---
+description: Rust/Tauri backend conventions for game and engines
+globs: src-tauri/**/*.rs
+alwaysApply: false
+---
+
+# Rust backend
+
+- Chess rules and legal moves: Shakmaty only.
+- Keep Tauri commands thin: parse input, call `game` / `engine`, return serializable DTOs.
+- Keep engine integration in `engine/` — isolated from UI and from `game` rules logic.
+- MVP: no network, no filesystem engine install, no real UCI process management.
+- Add crates with `cargo add` from `src-tauri`, not hand-edited `Cargo.toml` dependency lines when CLI works.

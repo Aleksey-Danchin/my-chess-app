@@ -1,0 +1,14 @@
+---
+description: React frontend and Chessground/Tailwind conventions
+globs: src/**/*.ts, src/**/*.tsx, src/**/*.css
+alwaysApply: false
+---
+
+# Frontend
+
+- Chessground is presentation only: no client-side move legality. Use `dests` and FEN from Tauri.
+- App chrome (layout, buttons, modals, status): Tailwind + daisyUI class names.
+- Do not override Chessground `cg-*` classes with utilities; import chessground CSS next to the board.
+- Prefer thin wrappers (`ChessBoard`) over third-party React Chessground packages unless needed.
+- User-facing UI copy may be Russian.
+- Add JS packages with `npm install`, not by editing `package.json` by hand.
